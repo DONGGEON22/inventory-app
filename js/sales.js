@@ -501,6 +501,35 @@ function updateSale() {
     showToast('매출이 수정되었습니다.');
 }
 
+// 매출 행 삭제 함수
+function removeSaleRow(button) {
+    const row = button.closest('tr');
+    if (row) {
+        // 행이 하나만 남았을 경우 삭제하지 않고 초기화
+        const tbody = row.parentElement;
+        if (tbody.children.length === 1) {
+            const inputs = row.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                if (input.type === 'text' || input.type === 'number') {
+                    input.value = '';
+                } else if (input.tagName === 'SELECT') {
+                    input.selectedIndex = 0;
+                }
+            });
+            // 데이터셋 초기화
+            const itemSearch = row.querySelector('.itemSearch');
+            if (itemSearch) {
+                itemSearch.dataset.code = '';
+                itemSearch.value = '';
+            }
+        } else {
+            row.remove();
+        }
+        // 합계 다시 계산
+        updateSaleTotals();
+    }
+}
+
 // Export functions for use in HTML
 window.loadSales = loadSales;
 window.loadSalesTable = loadSalesTable;

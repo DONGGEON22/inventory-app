@@ -1,6 +1,9 @@
 // Inventory Management
 // ===================
 
+// Using global firebase variables
+// import { db, auth, logToFirebase } from '../src/firebase.js';
+
 // Load Inventory Page
 function loadInventory() {
     if (!isLoggedIn()) {
@@ -206,45 +209,37 @@ function loadInventoryTable() {
 }
 
 // 재고 등록 함수
-function saveInventory() {
-    const itemCode = document.getElementById('selectedInventoryItemCode').value;
-    const quantity = Number(document.getElementById('inventoryQuantity').value);
-    const safetyStock = Number(document.getElementById('inventorySafetyStock').value) || 0;
-    const location = document.getElementById('inventoryLocation').value;
-    const note = document.getElementById('inventoryNote').value;
-
-    if (!itemCode || quantity === undefined || quantity === null) {
-        alert('품목과 현재고를 입력해주세요.');
-        return;
+async function saveInventory(item) {
+    try {
+        showLoading('재고 저장 중...');
+        
+        const userId = auth.currentUser.uid;
+        const inventoryRef = db.collection(`users/${userId}/inventory`).doc(item.code);
+        
+        // 저장 시작 로깅
+        logToFirebase('inventory_save_start', { itemCode: item.code });
+        
+        await inventoryRef.set({
+            ...item,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        
+        // 저장 성공 로깅
+        logToFirebase('inventory_save_success', { 
+            itemCode: item.code,
+            quantity: item.quantity
+        });
+        
+        hideLoading();
+        showToast('재고가 저장되었습니다.');
+    } catch (error) {
+        // 저장 실패 로깅
+        logToFirebase('inventory_save_error', { itemCode: item.code }, error);
+        
+        hideLoading();
+        showToast('재고 저장 중 오류가 발생했습니다.', 'danger');
+        console.error('재고 저장 오류:', error);
     }
-
-    // 이미 등록된 품목인지 확인
-    const existingIndex = state.inventory.findIndex(inv => inv.itemCode === itemCode);
-    if (existingIndex !== -1) {
-        alert('이미 등록된 품목입니다. 수정 기능을 사용해주세요.');
-        return;
-    }
-
-    const inventory = {
-        id: generateId(),
-        itemCode: itemCode,
-        quantity: quantity,
-        safetyStock: safetyStock,
-        location: location,
-        note: note
-    };
-
-    state.inventory.push(inventory);
-    saveCompanyState();
-    
-    // 모달 닫기
-    const modal = bootstrap.Modal.getInstance(document.querySelector('.modal'));
-    if (modal) {
-        modal.hide();
-    }
-    
-    loadInventoryTable();
-    showToast('재고가 등록되었습니다.');
 }
 
 // 재고 수정 함수
@@ -382,4 +377,82 @@ function setupInventoryModalEvents() {
             }
         );
     }
-} 
+}
+
+// 재고 불러오기
+async function loadInventory() {
+    try {
+        showLoading('재고 데이터 로드 중...');
+        
+        const userId = auth.currentUser.uid;
+        const inventoryRef = db.collection(`users/${userId}/inventory`);
+        
+        // 로드 시작 로깅
+        logToFirebase('inventory_load_start', {});
+        
+        const snapshot = await inventoryRef.get();
+        const items = [];
+        
+        snapshot.forEach(doc => {
+            items.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        // 로드 성공 로깅
+        logToFirebase('inventory_load_success', { itemCount: items.length });
+        
+        hideLoading();
+        return items;
+    } catch (error) {
+        // 로드 실패 로깅
+        logToFirebase('inventory_load_error', {}, error);
+        
+        hideLoading();
+        showToast('재고 데이터 로드 중 오류가 발생했습니다.', 'danger');
+        console.error('재고 로드 오류:', error);
+        return [];
+    }
+}
+
+// 실시간 재고 업데이트 구독
+function subscribeToInventory(callback) {
+    if (!auth.currentUser) return null;
+    
+    const userId = auth.currentUser.uid;
+    const inventoryRef = db.collection(`users/${userId}/inventory`);
+    
+    logToFirebase('inventory_subscribe_start', {});
+    
+    return inventoryRef.onSnapshot(
+        (snapshot) => {
+            const items = [];
+            snapshot.forEach(doc => {
+                items.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+            
+            logToFirebase('inventory_update', { 
+                itemCount: items.length,
+                changeType: 'realtime'
+            });
+            
+            callback(items);
+        },
+        (error) => {
+            logToFirebase('inventory_subscribe_error', {}, error);
+            console.error('재고 구독 오류:', error);
+            showToast('재고 데이터 동기화 중 오류가 발생했습니다.', 'danger');
+        }
+    );
+}
+
+// 내보내기
+export {
+    saveInventory,
+    loadInventory,
+    subscribeToInventory
+}; 
