@@ -450,9 +450,8 @@ function subscribeToInventory(callback) {
     );
 }
 
-// 내보내기
-export {
-    saveInventory,
-    loadInventory,
-    subscribeToInventory
-}; 
+// Export functions to global scope
+window.loadInventory = loadInventory;
+window.updateInventory = updateInventory;
+window.showAddInventoryModal = showAddInventoryModal;
+window.showInventoryModal = showInventoryModal; 
