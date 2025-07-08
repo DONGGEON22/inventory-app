@@ -1,0 +1,12 @@
+// Firestore 전용 규칙 예시 — 첫 줄부터 마지막 }까지 그대로
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // clients/{clientId}/inventory/{docId} 컬렉션만 열어 둔 예시
+    match /clients/{clientId}/inventory/{docId} {
+      allow read, write: if request.auth != null
+        && (request.auth.uid == clientId
+            || request.auth.token.clientId == clientId);
+    }
+  }
+}
